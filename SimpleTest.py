@@ -7,8 +7,10 @@ if __name__ == '__main__':
     A = PClient(tracker_address, upload_rate=100000, download_rate=100000)
     B = PClient(tracker_address, upload_rate=100000, download_rate=100000)
 
+
     # A register a file and B download it
     fid = A.register("./test_files/alice.txt")
+
     data1 = B.download(fid)
 
     # A cancel the register of the file

@@ -8,7 +8,8 @@ class Tracker:
     def __init__(self, upload_rate=10000, download_rate=10000, port=None):
         self.proxy = Proxy(upload_rate, download_rate, port)
         self.files = {}
-        self.clients = {}  # format of key: (fid,index_of_block)
+        self.size_record = {}
+        self.downloading_ques = {}  # format of key: (fid,index_of_block)
 
     def __send__(self, data: bytes, dst: (str, int)):
         """
@@ -37,56 +38,46 @@ class Tracker:
         fid = info.split(',')[0]
         number_of_blocks = info.split(',')[1]
         number_of_blocks = int(number_of_blocks)
-
-
-        # update self.files
         if fid in self.files:
-            # has registered before:update
-            for i in range(number_of_blocks):
-                if i in self.files[fid]:  # has the block
-                    if client not in self.files[fid][i]:
-                        self.files[fid][i].append(client)
-                else:  # doesn't have the block
-                    self.files[fid][i] = [client]
-        else:  # first time for the file
+            # has registered before: update
+            tmp = [i + 1 for i in range(number_of_blocks)]
+            if client in self.files[fid]:
+                self.files[fid][client] = np.unique(self.files[fid][client] + tmp).tolist()
+            else:
+                self.files[fid][client]=tmp
+        else:
+            # file  vhb n hasn't registered before
+            self.size_record[fid] = number_of_blocks  # record the No. of blocks of the file
             self.files[fid] = {}
-            for i in range(number_of_blocks):
-                self.files[fid][i] = [client]
-
-
-        # update size record
-        if "size" not in self.files[fid]:
-            self.files[fid]['size'] = number_of_blocks
-
-
-        # update self.clients
-        if client not in self.clients:  # first time for the client
-            self.clients[client] = [fid]
-        else:  # client has registered
-            if fid not in self.clients[client]:  # first time for the file for the client
-                self.clients[client].append(fid)
-
-
-        print("register success! client:", client, "fid: ", fid)
+            self.files[fid][client] = [i + 1 for i in range(number_of_blocks)]
+        for i in self.files[fid][client]:
+            if (fid,i) in self.downloading_ques:
+                if client not in self.downloading_ques[(fid,i)]:
+                    self.downloading_ques[(fid, i)].append(client)
+            else:
+                self.downloading_ques[(fid, i)]=[client]
+        print("register success! client:",client,"fid: ",fid)
         self.response("200 OK", frm)
-
-
 
     def query(self, info, frm: (str, int)):
         fid = info.split(',')[0]
         query_index = info.split(',')[1]
-        query_index = int(query_index)
+        query_index = int(query_index)+1
         result = []
-        if fid not in self.files \
-                or query_index not in self.files[fid] \
-                or len(self.files[fid][query_index]) == 0:
+        if fid not in self.files:
             self.response("404 NOT FOUND", frm)
             print("query finished: not found")
         else:
-            tmp = self.files[fid][query_index].pop(0)
-            self.files[fid][query_index].append(tmp)
-            self.response("200 OK;".join(tmp), frm)
-            print("query finished: candidate_list: ", result)
+
+            # clients = list(self.files[fid].keys())
+            # for c in clients:
+            #     if query_index in self.files[fid][c]:
+            #         result.append(c)
+            # if len(result)==0:
+            #     self.response("404 NOT FOUND", frm)
+            # else:
+            #     self.response("200 OK;".join(result[random.randint(0, len(result) - 1)]), frm)
+            print("query finished: candidate_list: ",result)
 
         # if (fid,query_index) not in self.downloading_ques:
         #     index=0
@@ -97,9 +88,7 @@ class Tracker:
         #
         # for c in self.files[fid]:
         #     result.append(c)
-        # self.response("[%s]" % (", ".join(result)), frm)
-
-
+        #self.response("[%s]" % (", ".join(result)), frm)
 
     def cancel(self, info, frm: (), client):
         fid = info.split(',')[0]
@@ -110,29 +99,25 @@ class Tracker:
 
     def register1(self, info, frm):  # query for the size of the file
         fid = info.split(',')[0]
-        if fid not in self.files \
-                or 'size' not in self.files[fid]:
+        tmp=list(self.size_record.keys())
+        if fid in tmp:
+            self.response("200 OK;%d" % self.size_record[fid], frm)
+            print("register1 success! No.of blocks: ", self.size_record[fid])
+        else:
             self.response("404 NOT FOUND", frm)
             print("register1 fail")
-        else:
-            self.response("200 OK;%d" % self.files[fid]['size'], frm)
-            print("register1 success! No.of blocks: ",  self.files[fid]['size'])
 
 
     def instant_register(self, info, frm: (str, int), client):
         fid = info.split(',')[0]
         index = info.split(',')[1]
-        # update self.files
-        if client not in self.files[fid][index]:
-            self.files[fid][index].append(client)
-
-        # update self.clients
-        if client not in self.clients :
-            self.clients[client]=[fid]
-        elif fid not in self.clients[client]:
-            self.clients[client].append(fid)
+        if client in self.files[fid]:  # this client has registered for other blocks of the same file
+            self.files[fid][client].append(index)
+            self.files[fid][client] = np.unique(self.files[fid][client]).tolist()
+        else:  # register the file for the first time
+            self.files[fid][client] = [index]
         print("instant register success", self.files[fid][client])
-        self.response("200 OK", frm)
+        self.response("200 OK",frm)
 
     def start(self):
         while True:
@@ -140,7 +125,7 @@ class Tracker:
             msg, client = msg.decode(), "(\"%s\", %d)" % frm
             method = msg.split(';')[2]
             info = msg.split(';')[3]
-            print("receive success!", "request: ", method, "info: ", info)
+            print("receive success!","request: ",method,"info: ",info)
 
             if method == 'register':
                 # Client can use this to REGISTER a file and record it on the tracker
@@ -156,7 +141,7 @@ class Tracker:
                 print("call function instant_register()")
                 self.instant_register(info, frm, client)
 
-            elif method == "download1":
+            elif method=="download1":
                 # Client can use this to who has the specific file with the given fid
                 # fid = msg[6:]
                 print("call function query()")
