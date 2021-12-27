@@ -180,9 +180,9 @@ class PClient:
 def share(pclient):
     while True:
         info = pclient.__recv__()
-        print(info)#.decode()
+        print(info)
         request_addr = info[1]
-        request_list = info[0].split(";")
+        request_list = info[0].decode().split(";")
         if request_list[2] == 'download2':
             fid = request_list[3].split(",")[0]
             block_No = int(request_list[3].split(",")[1])
