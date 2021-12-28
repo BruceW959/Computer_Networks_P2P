@@ -68,7 +68,7 @@ class Tracker:
 
 
         print("register success! client:", client, "fid: ", fid)
-        self.response("200 OK", frm)
+        self.response("register:200 OK", frm)
 
 
 
@@ -80,13 +80,13 @@ class Tracker:
         if fid not in self.files \
                 or query_index not in self.files[fid] \
                 or len(self.files[fid][query_index]) == 0:
-            self.response("404 NOT FOUND", frm)
+            self.response("download1:404 NOT FOUND", frm)
             print("query finished: not found")
         else:
             tmp = self.files[fid][query_index].pop(0)
             self.files[fid][query_index].append(tmp)
-            self.response("200 OK;".join(tmp), frm)
-            print("query finished: candidate_list: ", result)
+            self.response("download1:200 OK;"+tmp, frm)
+            print("query finished: candidate_list: ", self.files[fid][query_index])
 
         # if (fid,query_index) not in self.downloading_ques:
         #     index=0
@@ -106,16 +106,16 @@ class Tracker:
         file_list = list(self.files.keys())
         for fid in file_list:
             del self.files[fid][client]
-        self.response("Success", frm)
+        self.response("cancel:200 OK", frm)
 
     def register1(self, info, frm):  # query for the size of the file
         fid = info.split(',')[0]
         if fid not in self.files \
                 or 'size' not in self.files[fid]:
-            self.response("404 NOT FOUND", frm)
+            self.response("register1:404 NOT FOUND", frm)
             print("register1 fail")
         else:
-            self.response("200 OK;%d" % self.files[fid]['size'], frm)
+            self.response("register1:200 OK;%d" % self.files[fid]['size'], frm)
             print("register1 success! No.of blocks: ",  self.files[fid]['size'])
 
 
@@ -132,7 +132,7 @@ class Tracker:
         elif fid not in self.clients[client]:
             self.clients[client].append(fid)
         print("instant register success", self.files[fid][client])
-        self.response("200 OK", frm)
+        self.response("download3:200 OK", frm)
 
     def start(self):
         while True:

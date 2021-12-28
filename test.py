@@ -15,9 +15,12 @@ if __name__ == '__main__':
     x={'a':1,'b':2}
     a=[1,2,3,4,5,6]
     tmp=a.pop(1)
-    print(a)
+    #print(a)
     a.append(tmp)
-    print(a)
-    print(random.randint(0,1))
+    #print(a)
+    a="1"
+    b="2"
+    print(a.join(b))
+    #print(random.randint(0,1))
 
 # See PyCharm help at https://www.jetbrains.com/help/pycharm/
