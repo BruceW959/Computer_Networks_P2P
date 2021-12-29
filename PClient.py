@@ -5,7 +5,7 @@ import hashlib
 
 
 class PClient:
-    block_size = 2048
+    block_size = 8192
     address = '127.0.0.1'
     stop_share = 0
 
@@ -67,6 +67,7 @@ class PClient:
             get_rev = ""
             while get_rev == "":
                 get_rev = self.info_batch["register"]
+            self.info_batch["register"] = ""
             if get_rev == '200 OK':
                 break
         print("register success")
@@ -80,6 +81,7 @@ class PClient:
             while get_rev == "":
                 get_rev = self.info_batch["register1"]
             get_rev = get_rev.split(";")
+            self.info_batch["register1"] = ""
             if get_rev[0] == '200 OK':
                 data_size = int(get_rev[1])
                 self.fileMap[fid] = [0 for _ in range(data_size)]
@@ -109,23 +111,21 @@ class PClient:
                 self.download3(fid, ready_index)
             else:
                 ready_download_list_index.append(ready_index)
-        print("==============================")
-        data = ""
+        data = b""
         for i in self.fileMap[fid]:
-            data += str(i)
-        print(data)
-        return data.encode()
+            if type(i) != bytes:
+                i = bytes(i)
+            data += i
+        return data
 
     def download1(self, fid, block_No):
         data = "200 OK;POST;download1;" + str(fid) + "," + str(block_No)
         while True:
-            print("wait to download1")
             self.__send__(data.encode(), self.tracker)
-            print("download1:" + data)
             get_rev = ""
             while get_rev == "":
                 get_rev = self.info_batch["download1"]
-            print(get_rev)
+            self.info_batch["download1"] = ""
             get_rev = get_rev.split(";")
             if get_rev[0] == '200 OK':
                 port = tuple(eval(get_rev[1]))[1]
@@ -135,14 +135,13 @@ class PClient:
     def download2(self, fid, block_No, port):
         data = "share:" + str(fid) + "," + str(block_No)
         while True:
-            print("wait to download2")
             self.__send__(data.encode(), (self.address, port))
-            print("download2:" + data)
             get_rev = ""
             while get_rev == "":
                 get_rev = self.info_batch["download2"]
-            get_rev = get_rev.split(";")
-            if get_rev[0] == '200 OK':
+            self.info_batch["download2"] = ""
+            get_rev = get_rev.split(b';')
+            if get_rev[0] == b'200 OK':
                 session_data = get_rev[1]
                 print("download2: get session data")
                 return session_data
@@ -151,28 +150,24 @@ class PClient:
     def download3(self, fid, block_No):
         data = "200 OK;POST;download3;" + str(fid) + "," + str(block_No)
         while True:
-            print("wait to download3")
             self.__send__(data.encode(), self.tracker)
-            print("download3:" + data)
             get_rev = ""
             while get_rev == "":
                 get_rev = self.info_batch["download3"]
-            print(get_rev)
+            self.info_batch["download3"] = ""
             get_rev = get_rev.split(";")
             if get_rev[0] == '200 OK':
                 print("download3: update process success")
                 break
 
     def share(self, info, address):
-            print("share start" + str(info) + "," + str(address))
             request_list = info.split(",")
             fid = request_list[0]
             block_No = int(request_list[1])
             if self.fileMap.get(fid) is not None and self.fileMap[fid][block_No] != 0:
                 print("share start one, fid:" + fid + " block_No:" + str(block_No))
-                data = 'download2:200 OK;' + self.fileMap[fid][block_No].decode()
-                self.__send__(data.encode(), address)
-                print("share finish.")
+                data = 'download2:200 OK;'.encode() + self.fileMap[fid][block_No]
+                self.__send__(data, address)
 
     def cancel(self, fid):
         """
@@ -207,6 +202,7 @@ class PClient:
             get_rev = ""
             while get_rev == "":
                 get_rev = self.info_batch["cancel"]
+            self.info_batch["cancel"] = ""
             print(get_rev)
             if get_rev == '200 OK':
                 return
@@ -259,17 +255,21 @@ register, register1, download1,  download2, download3, cancel
 def listen(pclient):
     while True:
         info = pclient.__recv__()
-       # print("listen " + info[0].decode() + str(info[1]))
+        # print("listen " + info[0].decode() + str(info[1]))
         address = info[1]
-        data = info[0].decode()
-        data_head, a, data_body = data.partition(":")
+        data = info[0]
+        data_head, a, data_body = data.partition(b':')
+        data_head = data_head.decode()
         print("listen " + data_head)
         # print("data_head:" + data_head + ",data_body:" + data_body)
         if data_head == 'share':
-            pclient.share(data_body, address)
+            pclient.share(data_body.decode(), address)
         else:
             if pclient.info_batch.get(data_head) is not None:
-                pclient.info_batch[data_head] = data_body
+                if data_head == 'download2':
+                   pclient.info_batch[data_head] = data_body
+                else:
+                    pclient.info_batch[data_head] = data_body.decode()
 
 
 class myThread(threading.Thread):
@@ -283,3 +283,5 @@ class myThread(threading.Thread):
         print("开启多线程： " + self.name)
         listen(self.pclient)
         print("退出多线程： " + self.name)
+
+
