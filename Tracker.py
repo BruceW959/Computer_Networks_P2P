@@ -167,8 +167,10 @@ class Tracker:
                 # Client can use this file to cancel the share of a file
                 print("call function cancel()s")
                 self.cancel(info, frm, client)
-
+            
+            elif method == "close":
+                self.response("close:200 OK",frm)
 
 if __name__ == '__main__':
-    tracker = Tracker(port=8080)
+    tracker = Tracker(port=10086)
     tracker.start()
