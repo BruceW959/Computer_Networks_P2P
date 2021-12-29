@@ -1,5 +1,4 @@
-import threading
-
+from threading import Thread
 from Project_P2P.Proxy import Proxy
 import hashlib
 
@@ -21,8 +20,11 @@ class PClient:
         self.info_batch = {'register': "", 'register1': "", "download1": "",
                            "download2": "", "download3": "", "cancel": "", "close": ""}
         #  self.share_batch = []
-        self.thread = myThread(1, "Listen-1", self)
-        self.thread.start()
+        self.threadList = []
+        self.thread = Thread(target=self.listen())
+        print("time")
+       # self.threadList[0].start()
+        print("work")
 
     def __send__(self, data: bytes, dst: (str, int)):
         """
@@ -42,6 +44,30 @@ class PClient:
         :return: a tuple x with packet data in x[0] and the source address(ip, port) in x[1]
         """
         return self.proxy.recvfrom(timeout)
+
+    def listen(self):
+        print("listen 线程建立")
+        print(self.thread.isAlive())
+        while True:
+            info = self.__recv__()
+            # print("listen " + info[0].decode() + str(info[1]))
+            address = info[1]
+            data = info[0]
+            data_head, a, data_body = data.partition(b':')
+            data_head = data_head.decode()
+            print("listen " + data_head)
+            # print("data_head:" + data_head + ",data_body:" + data_body)
+            if data_head == 'share':
+                self.share(data_body.decode(), address)
+            else:
+                if self.info_batch.get(data_head) is not None:
+                    if data_head == 'download2':
+                        self.info_batch[data_head] = data_body
+                    else:
+                        self.info_batch[data_head] = data_body.decode()
+                        if data_head == 'close':
+                            break
+        print("listen 线程关闭")
 
     def register(self, file_path: str):
         """
@@ -247,40 +273,3 @@ register, register1, download1,  download2, download3, cancel
             pclient.cancle(data)
 
          """
-
-
-def listen(pclient):
-    while True:
-        info = pclient.__recv__()
-        # print("listen " + info[0].decode() + str(info[1]))
-        address = info[1]
-        data = info[0]
-        data_head, a, data_body = data.partition(b':')
-        data_head = data_head.decode()
-        print("listen " + data_head)
-        # print("data_head:" + data_head + ",data_body:" + data_body)
-        if data_head == 'share':
-            pclient.share(data_body.decode(), address)
-        else:
-            if pclient.info_batch.get(data_head) is not None:
-                if data_head == 'download2':
-                   pclient.info_batch[data_head] = data_body
-                else:
-                    pclient.info_batch[data_head] = data_body.decode()
-                    if data_head == 'close':
-                        break
-
-
-class myThread(threading.Thread):
-    def __init__(self, threadID, name, pclient):
-        threading.Thread.__init__(self)
-        self.threadID = threadID
-        self.name = name
-        self.pclient = pclient
-
-    def run(self):
-        print("开启多线程： " + self.name)
-        listen(self.pclient)
-        print("退出多线程： " + self.name)
-
-
