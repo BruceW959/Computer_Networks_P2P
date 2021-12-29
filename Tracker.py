@@ -38,7 +38,6 @@ class Tracker:
         number_of_blocks = info.split(',')[1]
         number_of_blocks = int(number_of_blocks)
 
-
         # update self.files
         if fid in self.files:
             # has registered before:update
@@ -53,11 +52,9 @@ class Tracker:
             for i in range(number_of_blocks):
                 self.files[fid][i] = [client]
 
-
         # update size record
         if "size" not in self.files[fid]:
             self.files[fid]['size'] = number_of_blocks
-
 
         # update self.clients
         if client not in self.clients:  # first time for the client
@@ -66,11 +63,8 @@ class Tracker:
             if fid not in self.clients[client]:  # first time for the file for the client
                 self.clients[client].append(fid)
 
-
         print("register success! client:", client, "fid: ", fid)
         self.response("register:200 OK", frm)
-
-
 
     def query(self, info, frm: (str, int)):
         fid = info.split(',')[0]
@@ -85,7 +79,7 @@ class Tracker:
         else:
             tmp = self.files[fid][query_index].pop(0)
             self.files[fid][query_index].append(tmp)
-            self.response("download1:200 OK;"+tmp, frm)
+            self.response("download1:200 OK;" + tmp, frm)
             print("query finished: candidate_list: ", self.files[fid][query_index])
 
         # if (fid,query_index) not in self.downloading_ques:
@@ -99,13 +93,14 @@ class Tracker:
         #     result.append(c)
         # self.response("[%s]" % (", ".join(result)), frm)
 
-
-
     def cancel(self, info, frm: (), client):
-        fid = info.split(',')[0]
-        file_list = list(self.files.keys())
-        for fid in file_list:
-            del self.files[fid][client]
+        fid = info
+        size = self.files[fid]['size']
+        for i in range(size):
+            if client in self.files[fid][i]:
+                self.files[fid][i].remove(client)
+        if fid in self.clients[client]:
+            self.clients[client].remove(fid)
         self.response("cancel:200 OK", frm)
 
     def register1(self, info, frm):  # query for the size of the file
@@ -116,8 +111,7 @@ class Tracker:
             print("register1 fail")
         else:
             self.response("register1:200 OK;%d" % self.files[fid]['size'], frm)
-            print("register1 success! No.of blocks: ",  self.files[fid]['size'])
-
+            print("register1 success! No.of blocks: ", self.files[fid]['size'])
 
     def instant_register(self, info, frm: (str, int), client):
         fid = info.split(',')[0]
@@ -127,8 +121,8 @@ class Tracker:
             self.files[fid][index].append(client)
 
         # update self.clients
-        if client not in self.clients :
-            self.clients[client]=[fid]
+        if client not in self.clients:
+            self.clients[client] = [fid]
         elif fid not in self.clients[client]:
             self.clients[client].append(fid)
         print("instant register success", self.files[fid][client])
