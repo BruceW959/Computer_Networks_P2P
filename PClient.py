@@ -1,5 +1,11 @@
+<<<<<<< HEAD
 from threading import Thread
 from Project_P2P.Proxy import Proxy
+=======
+import threading
+
+from Proxy import Proxy
+>>>>>>> e5f96dbfb4084aefa78a51e162176ff33f26d8f3
 import hashlib
 
 
