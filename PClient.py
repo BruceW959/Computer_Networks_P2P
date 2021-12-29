@@ -1,6 +1,6 @@
 import threading
 
-from Project_P2P.Proxy import Proxy
+from Proxy import Proxy
 import hashlib
 
 

@@ -58,7 +58,6 @@ class Tracker:
         if "size" not in self.files[fid]:
             self.files[fid]['size'] = number_of_blocks
 
-
         # update self.clients
         if client not in self.clients:  # first time for the client
             self.clients[client] = [fid]
@@ -66,27 +65,32 @@ class Tracker:
             if fid not in self.clients[client]:  # first time for the file for the client
                 self.clients[client].append(fid)
 
-
         print("register success! client:", client, "fid: ", fid)
         self.response("register:200 OK", frm)
 
-
-
     def query(self, info, frm: (str, int)):
         fid = info.split(',')[0]
-        query_index = info.split(',')[1]
-        query_index = int(query_index)
+        query_indexes = info.split(',')[1].split('_')
+        query_indexes = [int(i) for i in query_indexes]
         result = []
-        if fid not in self.files \
-                or query_index not in self.files[fid] \
-                or len(self.files[fid][query_index]) == 0:
+        if fid not in self.files:
             self.response("download1:404 NOT FOUND", frm)
             print("query finished: not found")
         else:
-            tmp = self.files[fid][query_index].pop(0)
-            self.files[fid][query_index].append(tmp)
-            self.response("download1:200 OK;"+tmp, frm)
-            print("query finished: candidate_list: ", self.files[fid][query_index])
+            has_one = False
+            for query_index in query_indexes:
+                if query_index in self.files[fid] and len(self.files[fid]) > 0:
+                    has_one = True
+                    tmp = self.files[fid][query_index].pop(0)
+                    self.files[fid][query_index].append(tmp)
+                    result.append("%d-" + tmp % query_index)
+            if not has_one:
+                self.response("download1:404 NOT FOUND", frm)
+                print("query finished: not found")
+            else:
+                tmp='_'.join(result)
+                self.response("download1:200 OK;" + tmp, frm)
+                print("query finished: "+tmp)
 
         # if (fid,query_index) not in self.downloading_ques:
         #     index=0
@@ -117,19 +121,21 @@ class Tracker:
             print("register1 fail")
         else:
             self.response("register1:200 OK;%d" % self.files[fid]['size'], frm)
-            print("register1 success! No.of blocks: ",  self.files[fid]['size'])
-
+            print("register1 success! No.of blocks: ", self.files[fid]['size'])
 
     def instant_register(self, info, frm: (str, int), client):
         fid = info.split(',')[0]
-        index = int(info.split(',')[1])
+        indexes = info.split(',')[1].split('_')
+        indexes = [int(i) for i in indexes]
         # update self.files
-        if client not in self.files[fid][index]:
-            self.files[fid][index].append(client)
+        for index in indexes:
+            if client not in self.files[fid][index]:
+                self.files[fid][index].append(client)
+
 
         # update self.clients
         if client not in self.clients:
-            self.clients[client]=[fid]
+            self.clients[client] = [fid]
         elif fid not in self.clients[client]:
             self.clients[client].append(fid)
         print("instant register success")
@@ -167,10 +173,11 @@ class Tracker:
                 # Client can use this file to cancel the share of a file
                 print("call function cancel()s")
                 self.cancel(info, frm, client)
-            
+
             elif method == "close":
                 self.response("close:200 OK", frm)
 
+
 if __name__ == '__main__':
-    tracker = Tracker(port=8080)
+    tracker = Tracker(port=10086)
     tracker.start()
