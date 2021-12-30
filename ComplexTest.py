@@ -23,7 +23,7 @@ if __name__ == '__main__':
     # function for download and save
     def download(node, index):
         files[index] = node.download(fid)
-
+    print(1)
     time_start = time.time_ns()
     for i, client in enumerate(clients):
         threads.append(Thread(target=download, args=(client, i)))
@@ -52,15 +52,15 @@ if __name__ == '__main__':
         t.start()
 
     # A exits
-    time.sleep(15)
+    time.sleep(5)
     A.cancel(fid)
     print("==========================aclose")
     # B exits
-    time.sleep(15)
+    time.sleep(5)
     B.close()
     print("==========================bclose")
     # D exits
-    time.sleep(15)
+    time.sleep(5)
     D.close()
     print("==========================dclose")
     for t in threads:
@@ -68,7 +68,7 @@ if __name__ == '__main__':
     for i in files:
         if files[i] != bs:
             raise Exception("Downloaded file is different with the original one")
-    print("==============================================================SUCCESS")
+    print("SUCCESS")
 
     A.close()
     C.close()
