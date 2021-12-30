@@ -24,7 +24,7 @@ class PClient:
         self.recv_queue=SimpleQueue()
         # register, register1, download1,  download2, download3, cancel
         self.info_batch = {'register': "", 'register1': "", "download1": "",
-                           "download2": "", "download3": "", "cancel": "", "close": ""}
+                           "download2": "", "download3": "", "cancel": ""}
         #  self.share_batch = []
         self.threadList = []
         self.active = True
@@ -127,7 +127,7 @@ class PClient:
             self.info_batch["register1"] = ""
             if get_rev[0] == '200 OK':
                 data_size = int(get_rev[1])
-                self.fileMap[fid] = [data_size]
+                self.fileMap[fid] = [0 for _ in range(data_size)]
                 print("register1 success! " + get_rev[1])
                 break
 
@@ -139,14 +139,19 @@ class PClient:
         """
         print("download function work")
         self.register1(fid)
-        ready_download_list_index = [i for i in range(self.fileMap[fid][0])]
-        self.fileMap[fid].pop(0)
+        ready_download_list_index = []
+        index = 0
+        for i in self.fileMap[fid]:
+            if i == 0:
+                ready_download_list_index.append(index)
+            index += 1
         while ready_download_list_index:
             ready_index = []
             for i in range(10):
                 if ready_download_list_index:
                     ready_index.append(ready_download_list_index.pop(0))
             ready_port = self.download1(fid, ready_index)
+<<<<<<< HEAD
             for (index,port) in ready_port:
                 get_session_data = self.download2(fid, index, port)
                 print("get_se")
@@ -156,9 +161,18 @@ class PClient:
                 else:
                     ready_download_list_index.append(index)
 
+=======
+            get_session_data = self.download2(fid, ready_index, ready_port)
+            if get_session_data:
+                self.fileMap[fid].insert(ready_index, get_session_data)
+                self.download3(fid, ready_index)
+            else:
+                ready_download_list_index.append(ready_index)
+>>>>>>> parent of 5e0f6ef (Pclient 文本可以过complexTest)
         data = b""
-        print(len(self.fileMap[fid]))
         for i in self.fileMap[fid]:
+            if type(i) != bytes:
+                i = bytes(i)
             data += i
         print("----------------------------------------------------+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++")
         return data
@@ -193,9 +207,11 @@ class PClient:
             while get_rev == "":
                 get_rev = self.info_batch["download2"]
             self.info_batch["download2"] = ""
-            session_data = get_rev
-            print("download2: get session data")
-            return session_data
+            get_rev = get_rev.split(b';')
+            if get_rev[0] == b'200 OK':
+                session_data = get_rev[1]
+                print("download2: get session data")
+                return session_data
 
 
     def download3(self, fid, block_No):
@@ -217,7 +233,7 @@ class PClient:
             block_No = int(request_list[1])
             if self.fileMap.get(fid) is not None and self.fileMap[fid][block_No] != 0:
                 print("share start one, fid:" + fid + " block_No:" + str(block_No))
-                data = 'download2:'.encode() + self.fileMap[fid][block_No]
+                data = 'download2:200 OK;'.encode() + self.fileMap[fid][block_No]
                 self.__send__(data, address)
     def cancel(self, fid):
         """
@@ -233,9 +249,17 @@ class PClient:
         Completely stop the client, this client will be unable to share or download files any more
         :return: You can design as your need
         """
+<<<<<<< HEAD
         self.cancel2()
         print("emmm")
         self.active=False
+=======
+        for fid in self.fileMap.keys():
+            self.cancel1(fid)
+        self.thread.join()
+
+
+>>>>>>> parent of 5e0f6ef (Pclient 文本可以过complexTest)
 
         print("hahhah")
     def cancel1(self, fid):
@@ -258,14 +282,11 @@ class PClient:
         给tracker 告知当前我已经全部cancel了
         :return:
         """
-        data = "200 OK;POST;close;"
+        data = "200 OK;POST;cancel2;"
         while True:
             self.__send__(data.encode(), self.tracker)
-            get_rev = ""
-            while get_rev == "":
-                get_rev = self.info_batch["close"]
-            self.info_batch["close"] = ""
-            if get_rev == '200 OK':
+            get_rev = self.__recv__()[0].decode().split(";")
+            if get_rev[0] == '200 OK':
                 return
 
 
@@ -299,3 +320,41 @@ register, register1, download1,  download2, download3, cancel
             pclient.cancle(data)
 
          """
+<<<<<<< HEAD
+=======
+
+
+def listen(pclient):
+    while True:
+        info = pclient.__recv__()
+        # print("listen " + info[0].decode() + str(info[1]))
+        address = info[1]
+        data = info[0]
+        data_head, a, data_body = data.partition(b':')
+        data_head = data_head.decode()
+        print("listen " + data_head)
+        # print("data_head:" + data_head + ",data_body:" + data_body)
+        if data_head == 'share':
+            pclient.share(data_body.decode(), address)
+        else:
+            if pclient.info_batch.get(data_head) is not None:
+                if data_head == 'download2':
+                   pclient.info_batch[data_head] = data_body
+                else:
+                    pclient.info_batch[data_head] = data_body.decode()
+
+
+class myThread(threading.Thread):
+    def __init__(self, threadID, name, pclient):
+        threading.Thread.__init__(self)
+        self.threadID = threadID
+        self.name = name
+        self.pclient = pclient
+
+    def run(self):
+        print("开启多线程： " + self.name)
+        listen(self.pclient)
+        print("退出多线程： " + self.name)
+
+
+>>>>>>> parent of 5e0f6ef (Pclient 文本可以过complexTest)
