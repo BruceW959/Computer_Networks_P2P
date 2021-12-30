@@ -1,11 +1,10 @@
-<<<<<<< HEAD
+import time
+from queue import SimpleQueue
 from threading import Thread
-from Project_P2P.Proxy import Proxy
-=======
-import threading
+
 
 from Proxy import Proxy
->>>>>>> e5f96dbfb4084aefa78a51e162176ff33f26d8f3
+
 import hashlib
 
 
@@ -22,12 +21,17 @@ class PClient:
         self.tracker = tracker_addr
         self.fileMap = {}  # hashmap: filename - list[section1, section2,...]
         self.threadList = []
+        self.recv_queue=SimpleQueue()
         # register, register1, download1,  download2, download3, cancel
         self.info_batch = {'register': "", 'register1': "", "download1": "",
                            "download2": "", "download3": "", "cancel": "", "close": ""}
         #  self.share_batch = []
         self.threadList = []
-        self.thread = Thread(target=self.listen())
+        self.active = True
+        Thread(target=self.__process__).start()
+        Thread(target=self.__recv_thread__).start()
+
+
         print("time")
        # self.threadList[0].start()
         print("work")
@@ -50,29 +54,36 @@ class PClient:
         :return: a tuple x with packet data in x[0] and the source address(ip, port) in x[1]
         """
         return self.proxy.recvfrom(timeout)
-
-    def listen(self):
-        print("listen 线程建立")
-        print(self.thread.isAlive())
-        while True:
+    def __recv_thread__(self):
+        while self.active :
             info = self.__recv__()
+            self.recv_queue.put(info)
+            if not self.recv_queue.empty():
+                time.sleep(0.000001)
+
+    def __process__(self):
+        print("listen 线程建立")
+        #print(self.thread.isAlive())
+        while self.active:
+            if not self.recv_queue.empty():
+                info=self.recv_queue.get()
             # print("listen " + info[0].decode() + str(info[1]))
-            address = info[1]
-            data = info[0]
-            data_head, a, data_body = data.partition(b':')
-            data_head = data_head.decode()
-            print("listen " + data_head)
-            # print("data_head:" + data_head + ",data_body:" + data_body)
-            if data_head == 'share':
-                self.share(data_body.decode(), address)
-            else:
-                if self.info_batch.get(data_head) is not None:
-                    if data_head == 'download2':
-                        self.info_batch[data_head] = data_body
-                    else:
-                        self.info_batch[data_head] = data_body.decode()
-                        if data_head == 'close':
-                            break
+                address = info[1]
+                data = info[0]
+                data_head, a, data_body = data.partition(b':')
+                data_head = data_head.decode()
+                print("listen " + data_head)
+                # print("data_head:" + data_head + ",data_body:" + data_body)
+                if data_head == 'share':
+                    self.share(data_body.decode(), address)
+                else:
+                    if self.info_batch.get(data_head) is not None:
+                        if data_head == 'download2':
+                            self.info_batch[data_head] = data_body
+                        else:
+                            self.info_batch[data_head] = data_body.decode()
+                            if data_head == 'close':
+                                break
         print("listen 线程关闭")
 
     def register(self, file_path: str):
@@ -131,22 +142,33 @@ class PClient:
         ready_download_list_index = [i for i in range(self.fileMap[fid][0])]
         self.fileMap[fid].pop(0)
         while ready_download_list_index:
-            ready_index = ready_download_list_index.pop(0)
+            ready_index = []
+            for i in range(10):
+                if ready_download_list_index:
+                    ready_index.append(ready_download_list_index.pop(0))
             ready_port = self.download1(fid, ready_index)
-            get_session_data = self.download2(fid, ready_index, ready_port)
-            print("get_se")
-            if get_session_data:
-                self.fileMap[fid].insert(ready_index, get_session_data)
-                self.download3(fid, ready_index)
-            else:
-                ready_download_list_index.append(ready_index)
+            for (index,port) in ready_port:
+                get_session_data = self.download2(fid, index, port)
+                print("get_se")
+                if get_session_data:
+                    self.fileMap[fid].insert(index, get_session_data)
+                    self.download3(fid, index)
+                else:
+                    ready_download_list_index.append(index)
+
         data = b""
         print(len(self.fileMap[fid]))
         for i in self.fileMap[fid]:
             data += i
+        print("----------------------------------------------------+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++")
         return data
 
     def download1(self, fid, block_No):
+        tmp = str(block_No.pop(0))
+        while block_No:
+            tmp += '_'
+            tmp += str(block_No.pop(0))
+        block_No = tmp
         data = "200 OK;POST;download1;" + str(fid) + "," + str(block_No)
         while True:
             self.__send__(data.encode(), self.tracker)
@@ -156,9 +178,12 @@ class PClient:
             self.info_batch["download1"] = ""
             get_rev = get_rev.split(";")
             if get_rev[0] == '200 OK':
-                port = tuple(eval(get_rev[1]))[1]
+                port = (get_rev[1].split('_'))
+                port = [(int(i.split('-')[0]), tuple(eval(i.split('-')[1]))[1]) for i in port]
+
                 print("download1: get port" + str(port))
                 return port
+
 
     def download2(self, fid, block_No, port):
         data = "share:" + str(fid) + "," + str(block_No)
@@ -194,7 +219,6 @@ class PClient:
                 print("share start one, fid:" + fid + " block_No:" + str(block_No))
                 data = 'download2:'.encode() + self.fileMap[fid][block_No]
                 self.__send__(data, address)
-
     def cancel(self, fid):
         """
         Stop sharing a specific file, others should be unable to get this file from this client any more
@@ -204,8 +228,6 @@ class PClient:
         if self.fileMap.get(fid) is not None:
             self.cancel1(fid)
             del self.fileMap[fid]
-
-
     def close(self):
         """
         Completely stop the client, this client will be unable to share or download files any more
@@ -213,10 +235,9 @@ class PClient:
         """
         self.cancel2()
         print("emmm")
-        self.thread.join()
+        self.active=False
+
         print("hahhah")
-
-
     def cancel1(self, fid):
         """
         给tracker 告知当前我已经cancel了固定的fid
@@ -232,7 +253,6 @@ class PClient:
             print(get_rev)
             if get_rev == '200 OK':
                 return
-
     def cancel2(self):
         """
         给tracker 告知当前我已经全部cancel了

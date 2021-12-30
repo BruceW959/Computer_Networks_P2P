@@ -22,6 +22,9 @@ if __name__ == '__main__':
 
     if data1 == data2:
         print("Success!")
+        print("Success!")
+        print("Success!")
+        print("Success!")
     else:
         raise RuntimeError
 
