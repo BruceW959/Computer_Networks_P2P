@@ -83,8 +83,9 @@ class Tracker:
             self.response("download1:404 NOT FOUND", frm)
             print("query finished: not found")
         else:
-            tmp = self.files[fid][query_index].pop(0)
-            self.files[fid][query_index].append(tmp)
+            # tmp = self.files[fid][query_index].pop(0)
+            # self.files[fid][query_index].append(tmp)
+            tmp=self.files[fid][query_index][random.randint(0,len(self.files[fid][query_index])-1)]
             self.response("download1:200 OK;"+tmp, frm)
             print("query finished: candidate_list: ", self.files[fid][query_index])
 
@@ -169,6 +170,12 @@ class Tracker:
                 self.cancel(info, frm, client)
             
             elif method == "close":
+                for fid in self.clients[client]:
+                    size = self.files[fid]['size']
+                    for i in range(size):
+                        if client in self.files[fid][i]:
+                            self.files[fid][i].remove(client)
+                del self.clients[client]
                 self.response("close:200 OK",frm)
 
 if __name__ == '__main__':
